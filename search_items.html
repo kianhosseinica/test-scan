@@ -183,6 +183,17 @@
     <script>
         let selectedItem = null;
 
+        // Focus the search box when the page loads
+        window.onload = () => {
+            const queryInput = document.getElementById('query');
+            queryInput.focus();
+        };
+
+        // Auto-select text when search box gains focus
+        document.getElementById('query').addEventListener('focus', function () {
+            this.select();
+        });
+
         async function searchItems() {
             const query = document.getElementById('query').value;
             const resultsList = document.getElementById('results');
