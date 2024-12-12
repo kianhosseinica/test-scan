@@ -1,105 +1,130 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Barcode Scanner</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      margin: 0;
-      padding: 20px;
-    }
-    #interactive {
-      width: 100%;
-      max-width: 500px;
-      margin: 20px auto;
-      display: block;
-      border: 2px solid #ccc;
-    }
-    #output {
-      margin-top: 20px;
-      font-size: 18px;
-      color: green;
-    }
-    #error {
-      margin-top: 10px;
-      font-size: 16px;
-      color: red;
-    }
-    button {
-      margin-top: 20px;
-      padding: 10px 20px;
-      font-size: 16px;
-      background-color: #007BFF;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-    button:hover {
-      background-color: #0056b3;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Item Search</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #f4f4f9;
+        }
+        .container {
+            width: 90%;
+            max-width: 600px;
+            text-align: center;
+            padding: 20px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #007BFF;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:disabled {
+            background-color: #ccc;
+        }
+        button i {
+            margin-right: 5px;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        li {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+        }
+        @media (max-width: 600px) {
+            .container {
+                padding: 15px;
+            }
+        }
+    </style>
 </head>
 <body>
-  <h1>Barcode Scanner</h1>
-  <div id="interactive"></div>
-  <div id="output">Scanning...</div>
-  <div id="error"></div>
-  <button id="restartButton">Restart Scanner</button>
+    <div class="container">
+        <h1>Search Items</h1>
+        <input type="text" id="query" placeholder="Enter or scan barcode">
+        <button id="searchButton" onclick="searchItems()">
+            <i class="fas fa-search"></i> Search
+        </button>
+        <ul id="results"></ul>
+    </div>
 
-  <script src="https://unpkg.com/quagga/dist/quagga.min.js"></script>
-  <script>
-    const output = document.getElementById("output");
-    const errorOutput = document.getElementById("error");
-    const restartButton = document.getElementById("restartButton");
+    <script>
+        // Function to handle search
+        async function searchItems() {
+            const query = document.getElementById('query').value;
+            const resultsList = document.getElementById('results');
+            resultsList.innerHTML = '';
 
-    function startScanner() {
-      output.textContent = "Scanning...";
-      errorOutput.textContent = "";
+            if (!query) {
+                alert('Please enter a query or scan a barcode.');
+                return;
+            }
 
-      Quagga.init(
-        {
-          inputStream: {
-            name: "Live",
-            type: "LiveStream",
-            target: document.getElementById("interactive"),
-            constraints: {
-              facingMode: "environment", // Use back camera
-            },
-          },
-          decoder: {
-            readers: ["code_128_reader", "ean_reader", "upc_reader"], // Common barcode types
-          },
-        },
-        (err) => {
-          if (err) {
-            errorOutput.textContent = `Scanner initialization error: ${err}`;
-            return;
-          }
-          Quagga.start();
+            try {
+                const response = await fetch(`/oauth/search/?q=${encodeURIComponent(query)}`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    if (data.items && data.items.length > 0) {
+                        data.items.forEach(item => {
+                            const listItem = document.createElement('li');
+                            listItem.textContent = `${item.description} - Quantity: ${item.quantity_on_hand}`;
+                            resultsList.appendChild(listItem);
+                        });
+                    } else {
+                        resultsList.innerHTML = '<li>No items found.</li>';
+                    }
+                } else {
+                    alert(data.error || 'An error occurred.');
+                }
+            } catch (error) {
+                alert('An error occurred while searching. Please try again.');
+                console.error(error);
+            }
         }
-      );
 
-      Quagga.onDetected((data) => {
-        output.textContent = `Barcode Detected: ${data.codeResult.code}`;
-        stopScanner();
-      });
-    }
-
-    function stopScanner() {
-      Quagga.stop();
-    }
-
-    restartButton.addEventListener("click", () => {
-      stopScanner();
-      startScanner();
-    });
-
-    // Start the scanner on page load
-    startScanner();
-  </script>
+        // Allow scanning using barcode scanner or mobile camera
+        document.getElementById('query').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                searchItems();
+            }
+        });
+    </script>
 </body>
 </html>
