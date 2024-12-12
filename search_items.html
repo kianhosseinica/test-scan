@@ -1,171 +1,89 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Item Search</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            background-color: #f4f4f9;
-        }
-        .container {
-            width: 90%;
-            max-width: 600px;
-            text-align: center;
-            padding: 20px;
-            background: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-        h1 {
-            margin-bottom: 20px;
-            color: #333;
-        }
-        input[type="text"] {
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 20px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            font-size: 16px;
-        }
-        button {
-            width: 100%;
-            padding: 10px;
-            background-color: #007BFF;
-            color: #fff;
-            border: none;
-            border-radius: 5px;
-            font-size: 16px;
-            cursor: pointer;
-        }
-        button:disabled {
-            background-color: #ccc;
-        }
-        button i {
-            margin-right: 5px;
-        }
-        ul {
-            list-style-type: none;
-            padding: 0;
-        }
-        li {
-            margin: 10px 0;
-            padding: 10px;
-            background: #f9f9f9;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-        }
-        #videoContainer {
-            margin-top: 20px;
-            display: none;
-        }
-        video {
-            width: 100%;
-            max-width: 400px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-        }
-        @media (max-width: 600px) {
-            .container {
-                padding: 15px;
-            }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Barcode Scanner</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
+    video {
+      width: 100%;
+      max-width: 500px;
+      margin: 20px auto;
+      display: block;
+      border: 2px solid #ccc;
+    }
+    canvas {
+      display: none;
+    }
+    #output {
+      margin-top: 20px;
+      font-size: 18px;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Search Items</h1>
-        <input type="text" id="query" placeholder="Enter or scan barcode">
-        <button id="searchButton" onclick="searchItems()">
-            <i class="fas fa-search"></i> Search
-        </button>
-        <button id="scanButton" onclick="startBarcodeScanning()">Scan Barcode</button>
-        <div id="videoContainer">
-            <video id="video" autoplay></video>
-            <button onclick="stopBarcodeScanning()">Stop Scanning</button>
-        </div>
-        <ul id="results"></ul>
-    </div>
+  <h1>Barcode Scanner</h1>
+  <video id="camera" autoplay></video>
+  <canvas id="canvas"></canvas>
+  <div id="output">Scanning...</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@zxing/library@latest"></script>
-    <script>
-        const videoContainer = document.getElementById('videoContainer');
-        const video = document.getElementById('video');
-        const queryInput = document.getElementById('query');
-        const resultsList = document.getElementById('results');
-        const codeReader = new ZXing.BrowserBarcodeReader();
+  <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.min.js"></script>
+  <script>
+    const video = document.getElementById("camera");
+    const canvas = document.getElementById("canvas");
+    const context = canvas.getContext("2d");
+    const output = document.getElementById("output");
 
-        async function startBarcodeScanning() {
-            videoContainer.style.display = 'block';
-            try {
-                const devices = await codeReader.getVideoInputDevices();
-                if (devices.length === 0) {
-                    alert('No camera found on this device.');
-                    return;
-                }
+    let scanning = true;
 
-                const selectedDeviceId = devices[0].deviceId; // Use the first available camera
-                await codeReader.decodeFromVideoDevice(selectedDeviceId, video, (result, error) => {
-                    if (result) {
-                        queryInput.value = result.text; // Populate the input field with the scanned barcode
-                        stopBarcodeScanning();
-                        searchItems(); // Automatically trigger search
-                    }
-                    if (error) {
-                        console.warn('Error decoding barcode:', error);
-                    }
-                });
-            } catch (err) {
-                console.error('Error starting barcode scanner:', err);
-                alert('Could not start the barcode scanner. Please try again.');
-            }
-        }
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+        });
+        video.srcObject = stream;
+      } catch (err) {
+        output.textContent = "Error accessing camera: " + err.message;
+      }
+    }
 
-        function stopBarcodeScanning() {
-            videoContainer.style.display = 'none';
-            codeReader.reset();
-        }
+    function scanBarcode() {
+      if (!scanning) return;
 
-        async function searchItems() {
-            const query = queryInput.value.trim();
-            resultsList.innerHTML = '';
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-            if (!query) {
-                alert('Please enter a query or scan a barcode.');
-                return;
-            }
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, canvas.width, canvas.height);
 
-            try {
-                const response = await fetch(`/oauth/search/?q=${encodeURIComponent(query)}`);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
+      if (code) {
+        output.textContent = "Barcode Detected: " + code.data;
+        stopScanning();
+      } else {
+        output.textContent = "Scanning...";
+        requestAnimationFrame(scanBarcode);
+      }
+    }
 
-                const data = await response.json();
-                if (data.items && data.items.length > 0) {
-                    data.items.forEach(item => {
-                        const listItem = document.createElement('li');
-                        listItem.textContent = `${item.description} - Quantity: ${item.quantity_on_hand}`;
-                        resultsList.appendChild(listItem);
-                    });
-                } else {
-                    resultsList.innerHTML = '<li>No items found.</li>';
-                }
-            } catch (error) {
-                console.error('Error fetching items:', error);
-                alert('An error occurred while searching. Please try again.');
-            }
-        }
-    </script>
+    function stopScanning() {
+      scanning = false;
+      const stream = video.srcObject;
+      if (stream) {
+        const tracks = stream.getTracks();
+        tracks.forEach(track => track.stop());
+      }
+      video.srcObject = null;
+    }
+
+    video.addEventListener("play", scanBarcode);
+    startCamera();
+  </script>
 </body>
 </html>
