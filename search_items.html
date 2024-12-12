@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Item Search</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #f4f4f9;
+        }
+        .container {
+            width: 90%;
+            max-width: 600px;
+            text-align: center;
+            padding: 20px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #007BFF;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:disabled {
+            background-color: #ccc;
+        }
+        button i {
+            margin-right: 5px;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        li {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+        }
+        @media (max-width: 600px) {
+            .container {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Search Items</h1>
+        <input type="text" id="query" placeholder="Enter or scan barcode">
+        <button id="searchButton" onclick="searchItems()">
+            <i class="fas fa-search"></i> Search
+        </button>
+        <ul id="results"></ul>
+    </div>
+
+    <script>
+        // Function to handle search
+        async function searchItems() {
+            const query = document.getElementById('query').value;
+            const resultsList = document.getElementById('results');
+            resultsList.innerHTML = '';
+
+            if (!query) {
+                alert('Please enter a query or scan a barcode.');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/oauth/search/?q=${encodeURIComponent(query)}`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    if (data.items && data.items.length > 0) {
+                        data.items.forEach(item => {
+                            const listItem = document.createElement('li');
+                            listItem.textContent = `${item.description} - Quantity: ${item.quantity_on_hand}`;
+                            resultsList.appendChild(listItem);
+                        });
+                    } else {
+                        resultsList.innerHTML = '<li>No items found.</li>';
+                    }
+                } else {
+                    alert(data.error || 'An error occurred.');
+                }
+            } catch (error) {
+                alert('An error occurred while searching. Please try again.');
+                console.error(error);
+            }
+        }
+
+        // Allow scanning using barcode scanner or mobile camera
+        document.getElementById('query').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                searchItems();
+            }
+        });
+
+        // Barcode scanning functionality
+        async function scanBarcode() {
+            if (!('mediaDevices' in navigator && 'getUserMedia' in navigator.mediaDevices)) {
+                alert('Barcode scanning is not supported on this device.');
+                return;
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                video.play();
+
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                const scanInterval = setInterval(() => {
+                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                    // Use a library like QuaggaJS or ZXing to process the barcode
+                }, 500);
+
+                video.addEventListener('loadedmetadata', () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                });
+
+                video.addEventListener('error', () => {
+                    alert('Error accessing camera for scanning.');
+                    clearInterval(scanInterval);
+                    stream.getTracks().forEach(track => track.stop());
+                });
+
+            } catch (error) {
+                alert('Unable to access camera: ' + error.message);
+                console.error(error);
+            }
+        }
+
+        // Add a button to trigger barcode scanning
+        const scanButton = document.createElement('button');
+        scanButton.textContent = 'Scan Barcode';
+        scanButton.onclick = scanBarcode;
+        document.querySelector('.container').appendChild(scanButton);
+    </script>
+</body>
+</html>
