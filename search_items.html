@@ -9,9 +9,9 @@
       font-family: Arial, sans-serif;
       text-align: center;
       margin: 0;
-      padding: 0;
+      padding: 20px;
     }
-    video {
+    #interactive {
       width: 100%;
       max-width: 500px;
       margin: 20px auto;
@@ -21,6 +21,12 @@
     #output {
       margin-top: 20px;
       font-size: 18px;
+      color: green;
+    }
+    #error {
+      margin-top: 10px;
+      font-size: 16px;
+      color: red;
     }
     button {
       margin-top: 20px;
@@ -39,54 +45,60 @@
 </head>
 <body>
   <h1>Barcode Scanner</h1>
-  <video id="camera" autoplay></video>
+  <div id="interactive"></div>
   <div id="output">Scanning...</div>
-  <button id="startButton">Restart Scanner</button>
+  <div id="error"></div>
+  <button id="restartButton">Restart Scanner</button>
 
-  <script type="module">
-    import { BrowserMultiFormatReader } from 'https://cdn.jsdelivr.net/npm/@zxing/library@latest/esm/index.min.js';
-
-    const video = document.getElementById("camera");
+  <script src="https://unpkg.com/quagga/dist/quagga.min.js"></script>
+  <script>
     const output = document.getElementById("output");
-    const startButton = document.getElementById("startButton");
+    const errorOutput = document.getElementById("error");
+    const restartButton = document.getElementById("restartButton");
 
-    const codeReader = new BrowserMultiFormatReader();
-    let stream;
+    function startScanner() {
+      output.textContent = "Scanning...";
+      errorOutput.textContent = "";
 
-    async function startScanner() {
-      try {
-        output.textContent = "Scanning...";
-        const constraints = { video: { facingMode: "environment" } };
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-        video.srcObject = stream;
-
-        codeReader.decodeFromVideoDevice(null, video, (result, error) => {
-          if (result) {
-            output.textContent = "Barcode Detected: " + result.text;
-            stopScanner();
-          } else if (error) {
-            console.warn(error);
+      Quagga.init(
+        {
+          inputStream: {
+            name: "Live",
+            type: "LiveStream",
+            target: document.getElementById("interactive"),
+            constraints: {
+              facingMode: "environment", // Use back camera
+            },
+          },
+          decoder: {
+            readers: ["code_128_reader", "ean_reader", "upc_reader"], // Common barcode types
+          },
+        },
+        (err) => {
+          if (err) {
+            errorOutput.textContent = `Scanner initialization error: ${err}`;
+            return;
           }
-        });
-      } catch (err) {
-        output.textContent = "Error accessing camera: " + err.message;
-      }
+          Quagga.start();
+        }
+      );
+
+      Quagga.onDetected((data) => {
+        output.textContent = `Barcode Detected: ${data.codeResult.code}`;
+        stopScanner();
+      });
     }
 
     function stopScanner() {
-      if (stream) {
-        const tracks = stream.getTracks();
-        tracks.forEach((track) => track.stop());
-        stream = null;
-      }
-      codeReader.reset();
+      Quagga.stop();
     }
 
-    startButton.addEventListener("click", () => {
+    restartButton.addEventListener("click", () => {
       stopScanner();
       startScanner();
     });
 
+    // Start the scanner on page load
     startScanner();
   </script>
 </body>
