@@ -67,6 +67,17 @@
             display: flex;
             justify-content: space-between;
         }
+        #videoContainer {
+            margin-top: 20px;
+            display: none;
+            text-align: center;
+        }
+        video {
+            width: 100%;
+            max-width: 400px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
         @media (max-width: 600px) {
             .container {
                 padding: 15px;
@@ -81,13 +92,52 @@
         <button id="searchButton" onclick="searchItems()">
             <i class="fas fa-search"></i> Search
         </button>
+        <button id="scanButton" onclick="startBarcodeScanning()">Scan Barcode</button>
+        <div id="videoContainer">
+            <video id="video" autoplay></video>
+            <button onclick="stopBarcodeScanning()">Stop Scanning</button>
+        </div>
         <ul id="results"></ul>
     </div>
 
-    <script>
-        // Function to handle search
+    <script type="module">
+        import { BrowserMultiFormatReader } from '@zxing/browser';
+
+        const videoContainer = document.getElementById('videoContainer');
+        const video = document.getElementById('video');
+        const queryInput = document.getElementById('query');
+        const codeReader = new BrowserMultiFormatReader();
+
+        async function startBarcodeScanning() {
+            videoContainer.style.display = 'block';
+            try {
+                const devices = await codeReader.listVideoInputDevices();
+                if (devices.length === 0) {
+                    alert('No camera found on this device.');
+                    return;
+                }
+
+                const selectedDeviceId = devices[0].deviceId; // Default to the first camera
+                await codeReader.decodeFromVideoDevice(selectedDeviceId, video, (result, error) => {
+                    if (result) {
+                        queryInput.value = result.text; // Populate search bar with scanned barcode
+                        stopBarcodeScanning();
+                        searchItems();
+                    }
+                });
+            } catch (err) {
+                console.error('Error initializing barcode scanner:', err);
+                alert('Could not start the barcode scanner. Please try again.');
+            }
+        }
+
+        function stopBarcodeScanning() {
+            videoContainer.style.display = 'none';
+            codeReader.reset();
+        }
+
         async function searchItems() {
-            const query = document.getElementById('query').value;
+            const query = queryInput.value;
             const resultsList = document.getElementById('results');
             resultsList.innerHTML = '';
 
@@ -118,57 +168,7 @@
                 console.error(error);
             }
         }
-
-        // Allow scanning using barcode scanner or mobile camera
-        document.getElementById('query').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                searchItems();
-            }
-        });
-
-        // Barcode scanning functionality
-        async function scanBarcode() {
-            if (!('mediaDevices' in navigator && 'getUserMedia' in navigator.mediaDevices)) {
-                alert('Barcode scanning is not supported on this device.');
-                return;
-            }
-
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                const video = document.createElement('video');
-                video.srcObject = stream;
-                video.play();
-
-                const canvas = document.createElement('canvas');
-                const context = canvas.getContext('2d');
-                const scanInterval = setInterval(() => {
-                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-                    // Use a library like QuaggaJS or ZXing to process the barcode
-                }, 500);
-
-                video.addEventListener('loadedmetadata', () => {
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                });
-
-                video.addEventListener('error', () => {
-                    alert('Error accessing camera for scanning.');
-                    clearInterval(scanInterval);
-                    stream.getTracks().forEach(track => track.stop());
-                });
-
-            } catch (error) {
-                alert('Unable to access camera: ' + error.message);
-                console.error(error);
-            }
-        }
-
-        // Add a button to trigger barcode scanning
-        const scanButton = document.createElement('button');
-        scanButton.textContent = 'Scan Barcode';
-        scanButton.onclick = scanBarcode;
-        document.querySelector('.container').appendChild(scanButton);
     </script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.3/umd/index.min.js"></script>
 </body>
 </html>
