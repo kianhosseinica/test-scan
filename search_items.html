@@ -18,72 +18,76 @@
       display: block;
       border: 2px solid #ccc;
     }
-    canvas {
-      display: none;
-    }
     #output {
       margin-top: 20px;
       font-size: 18px;
+    }
+    button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 16px;
+      background-color: #007BFF;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0056b3;
     }
   </style>
 </head>
 <body>
   <h1>Barcode Scanner</h1>
   <video id="camera" autoplay></video>
-  <canvas id="canvas"></canvas>
   <div id="output">Scanning...</div>
+  <button id="startButton">Restart Scanner</button>
 
-  <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.min.js"></script>
-  <script>
+  <script type="module">
+    import { BrowserMultiFormatReader } from 'https://cdn.jsdelivr.net/npm/@zxing/library@latest/esm/index.min.js';
+
     const video = document.getElementById("camera");
-    const canvas = document.getElementById("canvas");
-    const context = canvas.getContext("2d");
     const output = document.getElementById("output");
+    const startButton = document.getElementById("startButton");
 
-    let scanning = true;
+    const codeReader = new BrowserMultiFormatReader();
+    let stream;
 
-    async function startCamera() {
+    async function startScanner() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" },
-        });
+        output.textContent = "Scanning...";
+        const constraints = { video: { facingMode: "environment" } };
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = stream;
+
+        codeReader.decodeFromVideoDevice(null, video, (result, error) => {
+          if (result) {
+            output.textContent = "Barcode Detected: " + result.text;
+            stopScanner();
+          } else if (error) {
+            console.warn(error);
+          }
+        });
       } catch (err) {
         output.textContent = "Error accessing camera: " + err.message;
       }
     }
 
-    function scanBarcode() {
-      if (!scanning) return;
-
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-      const code = jsQR(imageData.data, canvas.width, canvas.height);
-
-      if (code) {
-        output.textContent = "Barcode Detected: " + code.data;
-        stopScanning();
-      } else {
-        output.textContent = "Scanning...";
-        requestAnimationFrame(scanBarcode);
-      }
-    }
-
-    function stopScanning() {
-      scanning = false;
-      const stream = video.srcObject;
+    function stopScanner() {
       if (stream) {
         const tracks = stream.getTracks();
-        tracks.forEach(track => track.stop());
+        tracks.forEach((track) => track.stop());
+        stream = null;
       }
-      video.srcObject = null;
+      codeReader.reset();
     }
 
-    video.addEventListener("play", scanBarcode);
-    startCamera();
+    startButton.addEventListener("click", () => {
+      stopScanner();
+      startScanner();
+    });
+
+    startScanner();
   </script>
 </body>
 </html>
